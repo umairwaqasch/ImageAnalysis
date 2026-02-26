@@ -1,0 +1,256 @@
+/* =========================================
+   NeuralVision Custom Specifics
+   ========================================= */
+
+/* Gradient text */
+.bg-gradient-text {
+    background: linear-gradient(90deg, #8b5cf6, #ec4899);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+/* Drag and Drop Zone */
+.upload-zone {
+    border: 2px dashed rgba(255, 255, 255, 0.2);
+    background-color: rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    cursor: pointer;
+    min-height: 80px;
+}
+
+/* =========================================
+   Resizer Handle (Drag to Resize)
+   ========================================= */
+.resizer-handle {
+    width: 6px;
+    cursor: col-resize;
+    background-color: transparent;
+    transition: background-color 0.2s;
+    z-index: 1040;
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: var(--lte-sidebar-width, 250px);
+}
+
+.resizer-handle:hover,
+.resizer-handle.resizing {
+    background-color: #8b5cf6;
+}
+
+[data-bs-theme="light"] .upload-zone {
+    border-color: rgba(0, 0, 0, 0.2);
+    background-color: rgba(255, 255, 255, 0.5);
+}
+
+.upload-zone.dragover {
+    border-color: #8b5cf6;
+    background-color: rgba(139, 92, 246, 0.1);
+}
+
+.border-dashed {
+    border-style: dashed !important;
+    border-width: 2px !important;
+}
+
+/* =========================================
+   Gallery Layout Sizing
+   ========================================= */
+.app-main,
+.app-content {
+    overflow: visible !important;
+}
+
+.gallery-container {
+    display: grid;
+    /* Dynamically controlled by JS variable or falls back to 200px */
+    grid-template-columns: repeat(auto-fill, minmax(var(--card-min-width, 200px), 1fr));
+    /* grid-auto-rows removed, letting cards dictate their own natural flexible height */
+    gap: 1.25rem;
+    align-content: start;
+}
+
+.image-card {
+    position: relative;
+    border-radius: 12px;
+    overflow: hidden;
+    background-color: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s;
+    cursor: grab;
+    display: flex;
+    flex-direction: column;
+}
+
+.image-card:active {
+    cursor: grabbing;
+}
+
+.image-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.image-card.selected {
+    border-color: #8b5cf6;
+    /* Massive 4px solid border plus a glowing drop shadow */
+    box-shadow: 0 0 0 4px #8b5cf6, 0 8px 20px rgba(139, 92, 246, 0.4);
+    /* Pop up slightly when selected */
+    transform: translateY(-4px) scale(1.02);
+    z-index: 5;
+}
+
+.image-card img {
+    /* Dim unselected images slightly when hovering the gallery, let selected shine */
+    transition: opacity 0.3s;
+    width: 100%;
+    /* 1.5x height ratio for portrait photography */
+    height: calc(var(--card-min-width, 200px) * 1.2);
+    object-fit: contain;
+    background-color: #000;
+    /* Dark background behind transparent images */
+}
+
+[data-bs-theme="light"] .image-card img {
+    background-color: #f8f9fa;
+}
+
+/* Dim all unselected cards when AT LEAST ONE card is selected */
+.gallery-container:has(.image-card.selected) .image-card:not(.selected) {
+    opacity: 0.6;
+    transform: scale(0.98);
+}
+
+.gallery-container:has(.image-card.selected) .image-card:not(.selected):hover {
+    opacity: 0.9;
+    transform: scale(1);
+}
+
+/* Checkbox overlay removed - Selection handled purely by visual borders and info area click */
+
+/* Quick Actions Overlay */
+.card-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 4px;
+    z-index: 2;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.image-card:hover .card-actions {
+    opacity: 1;
+}
+
+/* Sidebar Category Edit/Delete Actions */
+.category-actions {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.15s ease-in-out;
+}
+
+.nav-link:hover .category-actions,
+.category-actions:focus-within {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* Make sure the icons don't overflow the text container abruptly */
+.nav-link .category-actions button {
+    background: transparent;
+    padding: 2px 4px;
+}
+
+.card-actions button,
+.card-actions a.btn {
+    background-color: rgba(30, 30, 30, 0.75);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--bs-body-color);
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+    transition: background-color 0.2s;
+}
+
+[data-bs-theme="light"] .card-actions button,
+[data-bs-theme="light"] .card-actions a.btn {
+    background-color: rgba(255, 255, 255, 0.85);
+    border-color: rgba(0, 0, 0, 0.1);
+}
+
+.card-actions button:hover,
+.card-actions a.btn:hover {
+    background-color: var(--bs-secondary-bg);
+}
+
+.card-actions button.text-danger:hover {
+    color: #fff !important;
+    background-color: #ef4444;
+}
+
+.ai-snippet.copyable-text {
+    cursor: pointer;
+    transition: color 0.15s ease-in-out;
+}
+
+.ai-snippet.copyable-text:hover {
+    color: #8b5cf6 !important;
+}
+
+/* AI Info Area */
+.card-info {
+    padding: 8px 12px;
+    background-color: var(--bs-body-bg);
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.card-info .ai-status {
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.card-info .ai-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    background-color: rgba(139, 92, 246, 0.1);
+    color: var(--accent-color);
+    border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.card-info .ai-snippet {
+    font-size: 0.8rem;
+    color: var(--bs-secondary-color);
+    display: -webkit-box;
+    -webkit-line-clamp: var(--card-line-clamp, 2);
+    line-clamp: var(--card-line-clamp, 2);
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-top: 4px;
+}
+
+/* =========================================
+   Marquee Selection Box
+   ========================================= */
+.selection-box {
+    position: absolute;
+    border: 1px solid rgba(139, 92, 246, 0.8);
+    background-color: rgba(139, 92, 246, 0.2);
+    pointer-events: none;
+    /* So mouse events pass through to items below */
+    z-index: 1050;
+    display: none;
+}
