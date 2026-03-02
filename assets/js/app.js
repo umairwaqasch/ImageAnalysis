@@ -452,12 +452,39 @@ function renderCategories() {
         a.href = "#";
         a.className = `nav-link d-flex align-items-center w-100 ${state.activeFilter == cat.id ? 'active' : ''}`;
         a.dataset.id = cat.id;
-        a.innerHTML = `<i class="nav-icon fas fa-folder me-2"></i> <p class="text-truncate flex-grow-1 mb-0">${escapeHTML(cat.name)}</p>`;
+        a.innerHTML = `<i class="nav-icon fas ${cat.is_locked ? 'fa-lock text-warning' : 'fa-folder'} me-2"></i> <p class="text-truncate flex-grow-1 mb-0">${escapeHTML(cat.name)}</p>`;
 
         // Category filters
-        a.addEventListener('click', (e) => {
+        a.addEventListener('click', async (e) => {
             e.preventDefault();
-            setActiveFilter(cat.id, cat.name);
+            if (cat.is_locked) {
+                const { value: password } = await Swal.fire({
+                    title: 'Folder Locked',
+                    input: 'password',
+                    inputPlaceholder: 'Enter folder password',
+                    inputAttributes: { autocapitalize: 'off', autocorrect: 'off' },
+                    showCancelButton: true
+                });
+                if (password) {
+                    try {
+                        const formData = new FormData();
+                        formData.append('category_id', cat.id);
+                        formData.append('password', password);
+                        const res = await fetch('api/folder_auth.php', { method: 'POST', body: formData });
+
+                        if (res.ok) {
+                            const authData = await res.json();
+                            if (authData.success) {
+                                setActiveFilter(cat.id, cat.name);
+                            }
+                        } else {
+                            toast('Incorrect folder password', 'error');
+                        }
+                    } catch (err) { toast('Authentication error', 'error'); }
+                }
+            } else {
+                setActiveFilter(cat.id, cat.name);
+            }
         });
 
         // Setup drop zone for drag-and-drop category assignment
@@ -556,6 +583,12 @@ function renderGallery() {
         if (state.activeFilter === 'uncategorized' && img.category_id !== null) return;
         if (state.activeFilter !== 'all' && state.activeFilter !== 'unanalyzed' && state.activeFilter !== 'uncategorized') {
             if (img.category_id != state.activeFilter) return;
+        }
+
+        // NEVER show locked active images in the global scope views. 
+        // Only show them if we are actively viewing their exact dedicated folder.
+        if (img.is_locked && state.activeFilter != img.category_id) {
+            return;
         }
 
         count++;
@@ -706,18 +739,26 @@ function updateBatchButtons() {
 // --- API Transmitting Functions ---
 
 async function addCategoryDialog() {
-    const { value: catName } = await Swal.fire({
+    const { value: formValues } = await Swal.fire({
         title: 'New Folder',
-        input: 'text',
-        inputPlaceholder: 'e.g. Landscapes, Receipts',
-        showCancelButton: true
+        html:
+            '<input id="swal-input1" class="swal2-input" placeholder="Folder Name (e.g. Landscapes)">' +
+            '<input id="swal-input2" class="swal2-input" type="password" placeholder="Optional Password Lock">',
+        focusConfirm: false,
+        showCancelButton: true,
+        preConfirm: () => {
+            return [
+                document.getElementById('swal-input1').value,
+                document.getElementById('swal-input2').value
+            ]
+        }
     });
 
-    if (catName) {
+    if (formValues && formValues[0]) {
         try {
             const res = await fetch('api/categories.php', {
                 method: 'POST',
-                body: JSON.stringify({ name: catName })
+                body: JSON.stringify({ name: formValues[0], private_key: formValues[1] })
             });
             const data = await res.json();
             if (data.error) toast(data.error, 'error');

@@ -1,4 +1,11 @@
 <?php
+session_start();
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Unauthorized']);
+    exit;
+}
+
 require_once '../config/db.php';
 header('Content-Type: application/json');
 
@@ -30,8 +37,8 @@ foreach ($_FILES['images']['tmp_name'] as $key => $tmpName) {
             $categoryId = isset($_POST['category_id']) && is_numeric($_POST['category_id']) ? (int) $_POST['category_id'] : null;
 
             if (move_uploaded_file($tmpName, $targetFilePath)) {
-                $stmt = $pdo->prepare("INSERT INTO images (filename, category_id) VALUES (?, ?)");
-                if ($stmt->execute([$fileName, $categoryId])) {
+                $stmt = $pdo->prepare("INSERT INTO images (user_id, filename, category_id) VALUES (?, ?, ?)");
+                if ($stmt->execute([$_SESSION['user_id'], $fileName, $categoryId])) {
                     $uploadedFiles[] = [
                         'id' => $pdo->lastInsertId(),
                         'filename' => $fileName,

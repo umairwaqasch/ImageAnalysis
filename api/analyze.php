@@ -1,4 +1,11 @@
 <?php
+session_start();
+if (!isset($_SESSION['user_id'])) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Unauthorized']);
+    exit;
+}
+
 require_once '../config/db.php';
 header('Content-Type: application/json');
 
@@ -23,8 +30,8 @@ $imageId = $data['id'];
 $prompt = isset($data['prompt']) && !empty($data['prompt']) ? $data['prompt'] : "Describe this image in detail.";
 
 // 1. Get filename from DB
-$stmt = $pdo->prepare("SELECT filename FROM images WHERE id = ?");
-$stmt->execute([$imageId]);
+$stmt = $pdo->prepare("SELECT filename FROM images WHERE id = ? AND user_id = ?");
+$stmt->execute([$imageId, $_SESSION['user_id']]);
 $imageRow = $stmt->fetch();
 
 if (!$imageRow) {
@@ -114,8 +121,8 @@ if (!isset($responseData['response'])) {
 $aiText = $responseData['response'];
 
 // 5. Save back to database
-$updateStmt = $pdo->prepare("UPDATE images SET prompt = ?, analysis_result = ? WHERE id = ?");
-if ($updateStmt->execute([$prompt, $aiText, $imageId])) {
+$updateStmt = $pdo->prepare("UPDATE images SET prompt = ?, analysis_result = ? WHERE id = ? AND user_id = ?");
+if ($updateStmt->execute([$prompt, $aiText, $imageId, $_SESSION['user_id']])) {
     echo json_encode([
         'success' => true,
         'analysis_result' => $aiText

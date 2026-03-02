@@ -1,3 +1,10 @@
+<?php
+session_start();
+if (!isset($_SESSION['user_id'])) {
+    header('Location: login.php');
+    exit;
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 
@@ -61,6 +68,15 @@
                         <button id="deleteSelectedBtn" class="btn btn-outline-danger btn-sm" disabled>
                             <i class="fas fa-trash me-1"></i> Delete Selected
                         </button>
+                    </li>
+                    <li class="nav-item ms-3 ps-3 border-start border-secondary-subtle d-flex align-items-center">
+                        <span class="text-secondary fw-bold pe-2">
+                            <i class="fas fa-user-circle me-1"></i>
+                            <?php echo htmlspecialchars($_SESSION['username']); ?>
+                        </span>
+                        <a href="api/auth.php?action=logout" class="btn btn-outline-danger btn-sm" title="Sign Out">
+                            <i class="fas fa-sign-out-alt"></i>
+                        </a>
                     </li>
                 </ul>
             </div>
