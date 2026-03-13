@@ -62,9 +62,33 @@ if ($method === 'GET') {
     }
 } elseif ($method === 'PUT') {
     $data = json_decode(file_get_contents('php://input'), true);
-    if (!empty($data['id']) && !empty($data['name'])) {
-        $stmt = $pdo->prepare("UPDATE categories SET name = ? WHERE id = ? AND user_id = ?");
-        if ($stmt->execute([trim($data['name']), $data['id'], $_SESSION['user_id']])) {
+    if (!empty($data['id']) && (!empty($data['name']) || isset($data['private_key']))) {
+        $fields = [];
+        $params = [];
+        
+        if (isset($data['name'])) {
+            $fields[] = "name = ?";
+            $params[] = trim($data['name']);
+        }
+        
+        if (isset($data['private_key'])) {
+            $fields[] = "private_key = ?";
+            $params[] = !empty($data['private_key']) ? password_hash(trim($data['private_key']), PASSWORD_DEFAULT) : null;
+        }
+        
+        if (empty($fields)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'No fields to update']);
+            exit;
+        }
+
+        $params[] = $data['id'];
+        $params[] = $_SESSION['user_id'];
+        
+        $sql = "UPDATE categories SET " . implode(', ', $fields) . " WHERE id = ? AND user_id = ?";
+        $stmt = $pdo->prepare($sql);
+        
+        if ($stmt->execute($params)) {
             echo json_encode(['success' => true]);
         } else {
             http_response_code(500);
@@ -72,7 +96,7 @@ if ($method === 'GET') {
         }
     } else {
         http_response_code(400);
-        echo json_encode(['error' => 'ID and name are required']);
+        echo json_encode(['error' => 'ID and at least one field are required']);
     }
 } else {
     http_response_code(405);

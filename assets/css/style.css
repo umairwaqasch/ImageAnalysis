@@ -31,12 +31,17 @@
     position: fixed;
     top: 0;
     bottom: 0;
-    left: var(--lte-sidebar-width, 250px);
+    left: var(--lte-sidebar-custom-width, 250px);
 }
 
 .resizer-handle:hover,
 .resizer-handle.resizing {
     background-color: #8b5cf6;
+}
+
+/* Hide resizer when sidebar is collapsed natively */
+.sidebar-collapse .resizer-handle {
+    display: none;
 }
 
 [data-bs-theme="light"] .upload-zone {
@@ -253,4 +258,19 @@
     /* So mouse events pass through to items below */
     z-index: 1050;
     display: none;
+}
+
+/* =========================================
+   Sidebar Resize Overrides
+   ========================================= */
+body:not(.sidebar-collapse) {
+    --lte-sidebar-width: var(--lte-sidebar-custom-width, 250px) !important;
+}
+
+.resizer-handle {
+    transition: left 0.3s ease; /* Match AdminLTE collapse speed */
+}
+
+.resizer-handle.resizing {
+    transition: none;
 }

@@ -76,9 +76,8 @@ function toggleTheme() {
 }
 
 function initResizer() {
-    // Apply starting width to the AdminLTE root variable natively
-    document.documentElement.style.setProperty('--lte-sidebar-width', state.sidebarWidth + 'px');
-    document.body.style.setProperty('--lte-sidebar-width', state.sidebarWidth + 'px');
+    // Apply starting width via custom variable to avoid overriding AdminLTE native collapse state
+    document.documentElement.style.setProperty('--lte-sidebar-custom-width', state.sidebarWidth + 'px');
 
     let isResizing = false;
 
@@ -94,8 +93,7 @@ function initResizer() {
         let newWidth = e.clientX;
         if (newWidth < 200) newWidth = 200;
         if (newWidth > 400) newWidth = 400;
-        document.documentElement.style.setProperty('--lte-sidebar-width', newWidth + 'px');
-        document.body.style.setProperty('--lte-sidebar-width', newWidth + 'px');
+        document.documentElement.style.setProperty('--lte-sidebar-custom-width', newWidth + 'px');
     });
 
     document.addEventListener('mouseup', () => {
@@ -104,7 +102,7 @@ function initResizer() {
             document.body.style.cursor = 'default';
             elements.resizer.classList.remove('resizing');
             // Save the new width
-            state.sidebarWidth = getComputedStyle(document.documentElement).getPropertyValue('--lte-sidebar-width').replace('px', '').trim();
+            state.sidebarWidth = getComputedStyle(document.documentElement).getPropertyValue('--lte-sidebar-custom-width').replace('px', '').trim() || '250';
             localStorage.setItem('sidebarWidth', state.sidebarWidth);
         }
     });
@@ -120,15 +118,14 @@ function initResizer() {
         let newWidth = e.touches[0].clientX;
         if (newWidth < 200) newWidth = 200;
         if (newWidth > 400) newWidth = 400;
-        document.documentElement.style.setProperty('--lte-sidebar-width', newWidth + 'px');
-        document.body.style.setProperty('--lte-sidebar-width', newWidth + 'px');
+        document.documentElement.style.setProperty('--lte-sidebar-custom-width', newWidth + 'px');
     }, { passive: true });
 
     document.addEventListener('touchend', () => {
         if (isResizing) {
             isResizing = false;
             elements.resizer.classList.remove('resizing');
-            state.sidebarWidth = getComputedStyle(document.documentElement).getPropertyValue('--lte-sidebar-width').replace('px', '').trim();
+            state.sidebarWidth = getComputedStyle(document.documentElement).getPropertyValue('--lte-sidebar-custom-width').replace('px', '').trim() || '250';
             localStorage.setItem('sidebarWidth', state.sidebarWidth);
         }
     });
@@ -768,22 +765,39 @@ async function addCategoryDialog() {
 }
 
 window.editCategory = async function (id, currentName) {
-    const { value: newName } = await Swal.fire({
-        title: 'Edit Folder Name',
-        input: 'text',
-        inputValue: currentName,
-        showCancelButton: true
+    const { value: formValues } = await Swal.fire({
+        title: 'Edit Folder',
+        html:
+            `<input id="swal-input-name" class="swal2-input" value="${escapeHTML(currentName)}" placeholder="Folder Name">` +
+            '<div class="mt-3 text-start small text-muted px-4 mb-2">Change Password:</div>' +
+            '<input id="swal-input-pass" class="swal2-input mt-0" type="password" placeholder="New Password">' +
+            '<div class="mt-2"><button type="button" class="btn btn-sm btn-outline-danger" onclick="document.getElementById(\'swal-input-pass\').value=\'\'; Swal.showValidationMessage(\'Password cleared! Click OK to save.\')">Remove Password</button></div>',
+        focusConfirm: false,
+        showCancelButton: true,
+        preConfirm: () => {
+            return [
+                document.getElementById('swal-input-name').value,
+                document.getElementById('swal-input-pass').value
+            ]
+        }
     });
 
-    if (newName && newName !== currentName) {
+    if (formValues && formValues[0]) {
+        const newName = formValues[0];
+        const newPass = formValues[1];
+        
         try {
+            const body = { id: id, name: newName };
+            // If user explicitly cleared the field or clicked remove, we send it to update DB
+            body.private_key = newPass; 
+
             await fetch('api/categories.php', {
                 method: 'PUT',
-                body: JSON.stringify({ id: id, name: newName })
+                body: JSON.stringify(body)
             });
             loadCategories();
-            toast('Folder renamed', 'success');
-        } catch (err) { toast('Error renaming folder', 'error'); }
+            toast('Folder updated', 'success');
+        } catch (err) { toast('Error updating folder', 'error'); }
     }
 }
 
