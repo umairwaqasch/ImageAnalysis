@@ -10,6 +10,7 @@ const state = {
     ollamaModel: localStorage.getItem('ollamaModel') || 'llama3.2-vision',
     ollamaTemp: localStorage.getItem('ollamaTemp') || 0.8,
     ollamaPredict: localStorage.getItem('ollamaPredict') || -1,
+    ollamaContext: localStorage.getItem('ollamaContext') || 2048,
     gridSize: localStorage.getItem('gridSize') || 200 // Default 200px
 };
 
@@ -26,6 +27,7 @@ const elements = {
     imageGrid: document.getElementById('imageGrid'),
     analyzeSelectedBtn: document.getElementById('analyzeSelectedBtn'),
     reanalyzeSelectedBtn: document.getElementById('reanalyzeSelectedBtn'),
+    clearAnalysisBtn: document.getElementById('clearAnalysisBtn'),
     analyzeViewBtn: document.getElementById('analyzeViewBtn'),
     deleteSelectedBtn: document.getElementById('deleteSelectedBtn'),
     openSettingsBtn: document.getElementById('openSettingsBtn'),
@@ -341,6 +343,13 @@ function bindEvents() {
         elements.reanalyzeSelectedBtn.addEventListener('click', async () => {
             if (state.selectedImageIds.size === 0) return;
             await processAnalysisQueue(Array.from(state.selectedImageIds));
+        });
+    }
+
+    if (elements.clearAnalysisBtn) {
+        elements.clearAnalysisBtn.addEventListener('click', async () => {
+            if (state.selectedImageIds.size === 0) return;
+            await processClearQueue(Array.from(state.selectedImageIds));
         });
     }
 
@@ -734,10 +743,15 @@ window.toggleSelection = function (id, event) {
 function updateBatchButtons() {
     elements.analyzeSelectedBtn.disabled = state.selectedImageIds.size === 0 || state.isAnalyzing;
     elements.analyzeSelectedBtn.innerHTML = `<i class="fas fa-bolt me-1"></i> Analyze Selected (${state.selectedImageIds.size})`;
-    
+
     if (elements.reanalyzeSelectedBtn) {
         elements.reanalyzeSelectedBtn.disabled = state.selectedImageIds.size === 0 || state.isAnalyzing;
         elements.reanalyzeSelectedBtn.innerHTML = `<i class="fas fa-sync-alt me-1"></i> Reanalyze Selected (${state.selectedImageIds.size})`;
+    }
+
+    if (elements.clearAnalysisBtn) {
+        elements.clearAnalysisBtn.disabled = state.selectedImageIds.size === 0 || state.isAnalyzing;
+        elements.clearAnalysisBtn.innerHTML = `<i class="fas fa-broom me-1"></i> Clear Analysis (${state.selectedImageIds.size})`;
     }
 
     if (elements.deleteSelectedBtn) {
@@ -949,8 +963,19 @@ async function processAnalysisQueue(idsArray) {
     const { value: customPrompt, isDismissed } = await Swal.fire({
         title: 'Custom Instruction',
         input: 'text',
+        //1st version
         //inputValue: 'Describe this image in detail for FLUX.1D limiting to max Flux.1D input token as we want to reproduce it using FLUX.1D. Start answering straight away, no intro like "This image shows...", no bullet points, no lists, just a simple paragraph answer.',
-        inputValue: 'Provide a highly precise visual description optimized for **FLUX.1D** prompt reconstruction. Focus only on elements that influence image synthesis: subject identity and facial structure, pose, body proportions, clothing and materials, hairstyle, makeup, lighting setup, color palette, environment, camera angle, lens perspective, depth of field, composition, textures, reflections, shadows, background elements, and overall artistic style. Preserve exact spatial relationships and visual hierarchy. Avoid speculation, storytelling, or interpretation—describe only observable visual information. Use dense, descriptive language suitable for generative prompts while remaining within typical FLUX token limits. Write a single compact paragraph with no introduction, no bullet points, and no lists. Include key photographic details such as focal length impression (portrait, wide, macro), lighting direction and intensity, contrast level, mood, and rendering style (photorealistic, cinematic, studio lighting, HDR, etc.). Emphasize distinctive facial features, skin texture, material finishes, and color accents that are critical for reproducing the image faithfully. The output must be a single continuous paragraph beginning immediately with the visual description.',
+        //2nd version
+        //inputValue: 'Provide a highly precise visual description optimized for **FLUX.1D** prompt reconstruction. Focus only on elements that influence image synthesis: subject identity and facial structure, pose, body proportions, clothing and materials, hairstyle, makeup, lighting setup, color palette, environment, camera angle, lens perspective, depth of field, composition, textures, reflections, shadows, background elements, and overall artistic style. Preserve exact spatial relationships and visual hierarchy. Avoid speculation, storytelling, or interpretation—describe only observable visual information. Use dense, descriptive language suitable for generative prompts while remaining within typical FLUX token limits. Write a single compact paragraph with no introduction, no bullet points, and no lists. Include key photographic details such as focal length impression (portrait, wide, macro), lighting direction and intensity, contrast level, mood, and rendering style (photorealistic, cinematic, studio lighting, HDR, etc.). Emphasize distinctive facial features, skin texture, material finishes, and color accents that are critical for reproducing the image faithfully. The output must be a single continuous paragraph beginning immediately with the visual description.',
+        //micro visual details
+        //inputValue: 'Analyze the provided image and reconstruct it as a high-precision FLUX generation prompt by extracting the exact visual structure of the scene. Begin with the primary subject identity and physical characteristics, including facial geometry, bone structure, symmetry, eye shape, nose shape, lips, jawline, skin tone, skin texture, and visible micro details. Continue with body proportions, pose, posture, gesture, and framing within the composition. Describe clothing, fabrics, and material properties, including texture, reflectivity, translucency, gloss, metallic surfaces, or fabric behavior. Specify hairstyle, hair texture, color gradients, and makeup details if present. Carefully analyze lighting physics, including key light direction, fill light intensity, rim lighting, reflections, shadow softness, contrast ratio, and how light interacts with skin and materials. Identify the dominant color palette and secondary accents present in the scene. Describe the environment and background elements, including depth layers, atmosphere, reflections, and spatial separation from the subject. Include camera and photographic characteristics such as camera angle, framing, lens impression (portrait, wide, macro), depth of field, focus plane, perspective distortion, and bokeh behavior. Capture surface textures, reflections, shadows, and highlights that influence visual realism. Maintain accurate spatial relationships and visual hierarchy across all elements. Avoid interpretation, storytelling, or speculation—describe only observable visual information. Output the result as one dense paragraph formatted like a FLUX-ready prompt, optimized for photorealistic reconstruction with cinematic lighting, high contrast, HDR detail, and ultra-detailed textures. Prioritize subject geometry, lighting direction, and material behavior over descriptive wording to maximize reconstruction accuracy.',
+        //inputValue: '',
+        //image analysis prompt built using the FLUX template structure
+        //inputValue: 'Analyze the provided image and reconstruct it as a FLUX-ready visual prompt using the following structured order: subject identity, distinct facial structure, pose and framing, clothing materials and textures, hairstyle and makeup details, lighting style and direction, dominant color palette, environment/background, cinematic composition, camera angle, depth of field, and lens feel. Describe visible elements using dense generative-prompt language while preserving accurate spatial relationships, proportions, reflections, shadows, textures, and material finishes. Emphasize distinctive facial features, skin texture, lighting contrast, and surface reflections that influence image synthesis. Maintain a photorealistic cinematic rendering style with high contrast and HDR detail. Avoid storytelling, assumptions, or interpretation. Output one compact paragraph formatted as a FLUX-ready prompt, beginning immediately with the subject description and following the structure: [subject identity], [distinct facial structure], [pose and framing], wearing [clothing materials and textures], [hairstyle and makeup details], dramatic [lighting style and direction], color palette of [dominant colors], set in [environment/background], cinematic composition, [camera angle], shallow depth of field, [lens feel], ultra-detailed textures, realistic skin, reflections and shadows preserved, photorealistic cinematic rendering, high contrast, HDR detail.',
+        //Cinematic Photography Prompt Version
+        //inputValue: 'Provide a cinematic visual description optimized for FLUX.1D, focusing on subject identity, facial structure, pose, body proportions, wardrobe materials, hairstyle, makeup, lighting design, color grading, environment, and composition. Include photographic details such as lens feel (portrait, wide, macro), camera angle, depth of field, lighting direction, contrast, reflections, and shadows. Emphasize textures, skin realism, material finishes, and spatial relationships. Write one compact paragraph using dense generative-prompt language with a photorealistic, cinematic studio aesthetic, avoiding storytelling or interpretation.',
+        //Ultra-Short Viral Prompt (Instagram Style)
+        inputValue: 'Describe the image with FLUX-optimized visual precision focusing only on synthesis-critical details: facial structure, pose, clothing materials, lighting, color palette, environment, camera angle, depth of field, composition, textures, reflections, and shadows. Avoid storytelling or interpretation. Write one dense aesthetic paragraph using generative-prompt language that preserves spatial relationships and visual hierarchy, emphasizing distinctive facial features, skin texture, material finishes, and key color accents for accurate reconstruction.',
         text: 'What should the AI look for?',
         showCancelButton: true
     });
@@ -967,7 +992,7 @@ async function processAnalysisQueue(idsArray) {
     for (const id of idsArray) {
         // Try to find card for UI updates (spinner, badge)
         let card = document.querySelector(`.image-card[data-id="${id}"]`);
-        
+
         let loader = card ? card.querySelector('.ai-loading-overlay') : null;
         if (loader) {
             loader.classList.remove('d-none');
@@ -983,7 +1008,8 @@ async function processAnalysisQueue(idsArray) {
                     prompt: customPrompt,
                     model: state.ollamaModel,
                     temperature: state.ollamaTemp,
-                    num_predict: state.ollamaPredict
+                    num_predict: state.ollamaPredict,
+                    num_ctx: state.ollamaContext
                 })
             });
             const data = await res.json();
@@ -1000,7 +1026,7 @@ async function processAnalysisQueue(idsArray) {
 
             if (data.success) {
                 successes++;
-                
+
                 // CRITICAL: Update global state immediately. 
                 // This ensures if the user switches back to this view later, the data is ready.
                 const img = state.images.find(i => i.id == id);
@@ -1011,7 +1037,7 @@ async function processAnalysisQueue(idsArray) {
                     card.dataset.analyzed = "true";
                     const badge = card.querySelector('.badge-ai-status');
                     const snippet = card.querySelector('.ai-snippet');
-                    
+
                     if (badge) {
                         badge.className = 'badge ai-badge text-success border-success bg-success bg-opacity-10 badge-ai-status';
                         badge.innerHTML = '<i class="fas fa-check me-1"></i>Analyzed';
@@ -1047,7 +1073,7 @@ async function processAnalysisQueue(idsArray) {
     elements.analyzeViewBtn.innerHTML = '<i class="fas fa-magic me-1"></i> Analyze View';
     if (elements.analyzeSelectedBtn) elements.analyzeSelectedBtn.innerHTML = '<i class="fas fa-bolt me-1"></i> Analyze Selected';
     if (elements.reanalyzeSelectedBtn) elements.reanalyzeSelectedBtn.innerHTML = '<i class="fas fa-sync-alt me-1"></i> Reanalyze Selected';
-    
+
     updateBatchButtons();
 
     // Clear selections
@@ -1094,6 +1120,59 @@ function escapeJsString(str) {
     return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"').replace(/\n/g, '\\n');
 }
 
+async function processClearQueue(idsArray) {
+    if (idsArray.length === 0) return;
+
+    const result = await Swal.fire({
+        title: `Clear analysis for ${idsArray.length} images?`,
+        text: "This will reset them to 'Unanalyzed' status and remove previous AI text.",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#6c757d"
+    });
+
+    if (!result.isConfirmed) return;
+
+    state.isAnalyzing = true;
+    updateBatchButtons();
+
+    try {
+        const res = await fetch('api/clear_analysis.php', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: idsArray })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            // Update local state for immediate visual sync
+            idsArray.forEach(id => {
+                const img = state.images.find(i => i.id == id);
+                if (img) {
+                    img.analysis_result = null;
+                    img.prompt = null;
+                }
+            });
+
+            // Clear selections
+            state.selectedImageIds.clear();
+
+            // Background sync
+            await loadImages();
+
+            toast(`Cleared analysis for ${data.cleared_count} images`, 'success');
+        } else {
+            toast('Failed to clear analysis', 'error');
+        }
+    } catch (err) {
+        console.error("Clear Error:", err);
+        toast('Connection error', 'error');
+    } finally {
+        state.isAnalyzing = false;
+        updateBatchButtons();
+    }
+}
+
 window.copyToClipboard = function (text) {
     navigator.clipboard.writeText(text).then(() => {
         toast('Copied to clipboard', 'success');
@@ -1107,11 +1186,13 @@ async function openSettings() {
     const tempInput = document.getElementById('ollamaTemp');
     const tempDisplay = document.getElementById('tempValueDisplay');
     const predictInput = document.getElementById('ollamaPredict');
+    const contextInput = document.getElementById('ollamaContext');
     const refreshBtn = document.getElementById('refreshModelsBtn');
 
     tempInput.value = state.ollamaTemp;
     tempDisplay.innerText = state.ollamaTemp;
     predictInput.value = state.ollamaPredict;
+    contextInput.value = state.ollamaContext;
 
     tempInput.oninput = () => tempDisplay.innerText = tempInput.value;
 
@@ -1171,14 +1252,17 @@ function saveSettings() {
     const tempInput = document.getElementById('ollamaTemp');
     const modelSelect = document.getElementById('ollamaModelSelect');
     const predictInput = document.getElementById('ollamaPredict');
+    const contextInput = document.getElementById('ollamaContext');
 
     state.ollamaModel = modelSelect.value;
     state.ollamaTemp = tempInput.value;
     state.ollamaPredict = predictInput.value;
+    state.ollamaContext = contextInput.value;
 
     localStorage.setItem('ollamaModel', state.ollamaModel);
     localStorage.setItem('ollamaTemp', state.ollamaTemp);
     localStorage.setItem('ollamaPredict', state.ollamaPredict);
+    localStorage.setItem('ollamaContext', state.ollamaContext);
 
     toast('Settings saved', 'success');
     const modalEl = document.getElementById('settingsModal');

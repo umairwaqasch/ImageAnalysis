@@ -65,6 +65,9 @@ if (!isset($_SESSION['user_id'])) {
                         <button id="reanalyzeSelectedBtn" class="btn btn-outline-warning btn-sm" disabled>
                             <i class="fas fa-sync-alt me-1"></i> Reanalyze Selected
                         </button>
+                        <button id="clearAnalysisBtn" class="btn btn-outline-secondary btn-sm" disabled>
+                            <i class="fas fa-broom me-1"></i> Clear Analysis
+                        </button>
                         <button id="analyzeViewBtn" class="btn btn-outline-primary btn-sm">
                             <i class="fas fa-magic me-1"></i> Analyze View
                         </button>
@@ -219,6 +222,11 @@ if (!isset($_SESSION['user_id'])) {
                         <label class="form-label">Max Tokens (num_predict)</label>
                         <input type="number" class="form-control" id="ollamaPredict" value="-1">
                         <small class="text-muted">Maximum length of response. -1 for infinity.</small>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Context Window (num_ctx)</label>
+                        <input type="number" class="form-control" id="ollamaContext" value="2048">
+                        <small class="text-muted">Memory for processing. 1024 or 2048 helps with low VRAM.</small>
                     </div>
                 </div>
                 <div class="modal-footer">

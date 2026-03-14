@@ -57,6 +57,7 @@ $base64Image = base64_encode($imageData);
 $model = isset($data['model']) && !empty($data['model']) ? $data['model'] : "llama3.2-vision";
 $temperature = isset($data['temperature']) && is_numeric($data['temperature']) ? (float) $data['temperature'] : 0.8;
 $numPredict = isset($data['num_predict']) && is_numeric($data['num_predict']) ? (int) $data['num_predict'] : -1;
+$numCtx = isset($data['num_ctx']) && is_numeric($data['num_ctx']) ? (int) $data['num_ctx'] : 2048;
 
 $ollamaUrl = "http://127.0.0.1:11434/api/generate";
 $ollamaPayloadObj = [
@@ -66,12 +67,14 @@ $ollamaPayloadObj = [
     "stream" => false
 ];
 
-if ($temperature !== 0.8 || $numPredict !== -1) {
+if ($temperature !== 0.8 || $numPredict !== -1 || $numCtx !== 2048) {
     $ollamaPayloadObj["options"] = [];
     if ($temperature !== 0.8)
         $ollamaPayloadObj["options"]["temperature"] = $temperature;
     if ($numPredict !== -1)
         $ollamaPayloadObj["options"]["num_predict"] = $numPredict;
+    if ($numCtx !== 2048)
+        $ollamaPayloadObj["options"]["num_ctx"] = $numCtx;
 }
 
 $ollamaPayload = json_encode($ollamaPayloadObj);
@@ -122,13 +125,13 @@ $aiText = $responseData['response'];
 
 // 5. Save back to database
 $updateStmt = $pdo->prepare("UPDATE images SET prompt = ?, analysis_result = ? WHERE id = ? AND user_id = ?");
-        if ($updateStmt->execute([$prompt, $aiText, $imageId, $_SESSION['user_id']])) {
-            echo json_encode([
-                'success' => true,
-                'id' => (int)$imageId,
-                'analysis_result' => $aiText
-            ]);
-        } else {
+if ($updateStmt->execute([$prompt, $aiText, $imageId, $_SESSION['user_id']])) {
+    echo json_encode([
+        'success' => true,
+        'id' => (int) $imageId,
+        'analysis_result' => $aiText
+    ]);
+} else {
     http_response_code(500);
     echo json_encode(['error' => 'Failed to save analysis to database']);
 }
