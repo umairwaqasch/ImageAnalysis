@@ -122,12 +122,13 @@ $aiText = $responseData['response'];
 
 // 5. Save back to database
 $updateStmt = $pdo->prepare("UPDATE images SET prompt = ?, analysis_result = ? WHERE id = ? AND user_id = ?");
-if ($updateStmt->execute([$prompt, $aiText, $imageId, $_SESSION['user_id']])) {
-    echo json_encode([
-        'success' => true,
-        'analysis_result' => $aiText
-    ]);
-} else {
+        if ($updateStmt->execute([$prompt, $aiText, $imageId, $_SESSION['user_id']])) {
+            echo json_encode([
+                'success' => true,
+                'id' => (int)$imageId,
+                'analysis_result' => $aiText
+            ]);
+        } else {
     http_response_code(500);
     echo json_encode(['error' => 'Failed to save analysis to database']);
 }

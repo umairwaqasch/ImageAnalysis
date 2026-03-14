@@ -62,6 +62,9 @@ if (!isset($_SESSION['user_id'])) {
                         <button id="analyzeSelectedBtn" class="btn btn-primary btn-sm" disabled>
                             <i class="fas fa-bolt me-1"></i> Analyze Selected
                         </button>
+                        <button id="reanalyzeSelectedBtn" class="btn btn-outline-warning btn-sm" disabled>
+                            <i class="fas fa-sync-alt me-1"></i> Reanalyze Selected
+                        </button>
                         <button id="analyzeViewBtn" class="btn btn-outline-primary btn-sm">
                             <i class="fas fa-magic me-1"></i> Analyze View
                         </button>

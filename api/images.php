@@ -22,7 +22,7 @@ if ($method === 'GET') {
         LEFT JOIN categories c ON i.category_id = c.id
         WHERE i.user_id = ?
           AND (c.private_key IS NULL OR c.private_key = '' OR c.id IN ($inClause))
-        ORDER BY i.created_at DESC
+        ORDER BY i.created_at DESC, i.id DESC
     ");
     $stmt->execute([$_SESSION['user_id']]);
     $images = $stmt->fetchAll();

@@ -25,6 +25,7 @@ const elements = {
     gridSizeSlider: document.getElementById('gridSizeSlider'),
     imageGrid: document.getElementById('imageGrid'),
     analyzeSelectedBtn: document.getElementById('analyzeSelectedBtn'),
+    reanalyzeSelectedBtn: document.getElementById('reanalyzeSelectedBtn'),
     analyzeViewBtn: document.getElementById('analyzeViewBtn'),
     deleteSelectedBtn: document.getElementById('deleteSelectedBtn'),
     openSettingsBtn: document.getElementById('openSettingsBtn'),
@@ -335,6 +336,13 @@ function bindEvents() {
         if (state.selectedImageIds.size === 0) return;
         await processAnalysisQueue(Array.from(state.selectedImageIds));
     });
+
+    if (elements.reanalyzeSelectedBtn) {
+        elements.reanalyzeSelectedBtn.addEventListener('click', async () => {
+            if (state.selectedImageIds.size === 0) return;
+            await processAnalysisQueue(Array.from(state.selectedImageIds));
+        });
+    }
 
     if (elements.deleteSelectedBtn) {
         elements.deleteSelectedBtn.addEventListener('click', async () => {
@@ -726,6 +734,12 @@ window.toggleSelection = function (id, event) {
 function updateBatchButtons() {
     elements.analyzeSelectedBtn.disabled = state.selectedImageIds.size === 0 || state.isAnalyzing;
     elements.analyzeSelectedBtn.innerHTML = `<i class="fas fa-bolt me-1"></i> Analyze Selected (${state.selectedImageIds.size})`;
+    
+    if (elements.reanalyzeSelectedBtn) {
+        elements.reanalyzeSelectedBtn.disabled = state.selectedImageIds.size === 0 || state.isAnalyzing;
+        elements.reanalyzeSelectedBtn.innerHTML = `<i class="fas fa-sync-alt me-1"></i> Reanalyze Selected (${state.selectedImageIds.size})`;
+    }
+
     if (elements.deleteSelectedBtn) {
         elements.deleteSelectedBtn.disabled = state.selectedImageIds.size === 0 || state.isAnalyzing;
         elements.deleteSelectedBtn.innerHTML = `<i class="fas fa-trash me-1"></i> Delete Selected (${state.selectedImageIds.size})`;
@@ -785,11 +799,11 @@ window.editCategory = async function (id, currentName) {
     if (formValues && formValues[0]) {
         const newName = formValues[0];
         const newPass = formValues[1];
-        
+
         try {
             const body = { id: id, name: newName };
             // If user explicitly cleared the field or clicked remove, we send it to update DB
-            body.private_key = newPass; 
+            body.private_key = newPass;
 
             await fetch('api/categories.php', {
                 method: 'PUT',
@@ -935,7 +949,8 @@ async function processAnalysisQueue(idsArray) {
     const { value: customPrompt, isDismissed } = await Swal.fire({
         title: 'Custom Instruction',
         input: 'text',
-        inputValue: 'Describe this image in detail for FLUX.1D limiting to max Flux.1D input token as we want to reproduce it using FLUX.1D. Start answering straight away, no intro like "This image shows...", no bullet points, no lists, just a simple paragraph answer.',
+        //inputValue: 'Describe this image in detail for FLUX.1D limiting to max Flux.1D input token as we want to reproduce it using FLUX.1D. Start answering straight away, no intro like "This image shows...", no bullet points, no lists, just a simple paragraph answer.',
+        inputValue: 'Provide a highly precise visual description optimized for **FLUX.1D** prompt reconstruction. Focus only on elements that influence image synthesis: subject identity and facial structure, pose, body proportions, clothing and materials, hairstyle, makeup, lighting setup, color palette, environment, camera angle, lens perspective, depth of field, composition, textures, reflections, shadows, background elements, and overall artistic style. Preserve exact spatial relationships and visual hierarchy. Avoid speculation, storytelling, or interpretation—describe only observable visual information. Use dense, descriptive language suitable for generative prompts while remaining within typical FLUX token limits. Write a single compact paragraph with no introduction, no bullet points, and no lists. Include key photographic details such as focal length impression (portrait, wide, macro), lighting direction and intensity, contrast level, mood, and rendering style (photorealistic, cinematic, studio lighting, HDR, etc.). Emphasize distinctive facial features, skin texture, material finishes, and color accents that are critical for reproducing the image faithfully. The output must be a single continuous paragraph beginning immediately with the visual description.',
         text: 'What should the AI look for?',
         showCancelButton: true
     });
@@ -950,15 +965,14 @@ async function processAnalysisQueue(idsArray) {
     let successes = 0;
 
     for (const id of idsArray) {
-        const card = document.querySelector(`.image-card[data-id="${id}"]`);
-        if (!card) continue;
-
-        const loader = card.querySelector('.ai-loading-overlay');
-        const badge = card.querySelector('.badge-ai-status');
-        const snippet = card.querySelector('.ai-snippet');
-
-        if (loader) loader.classList.remove('d-none', 'd-flex');
-        if (loader) loader.classList.add('d-flex'); // show flex
+        // Try to find card for UI updates (spinner, badge)
+        let card = document.querySelector(`.image-card[data-id="${id}"]`);
+        
+        let loader = card ? card.querySelector('.ai-loading-overlay') : null;
+        if (loader) {
+            loader.classList.remove('d-none');
+            loader.classList.add('d-flex');
+        }
 
         try {
             const res = await fetch('api/analyze.php', {
@@ -974,53 +988,78 @@ async function processAnalysisQueue(idsArray) {
             });
             const data = await res.json();
 
-            if (loader) {
-                loader.classList.remove('d-flex');
-                loader.classList.add('d-none');
+            // Check if card is STILL/NOW in DOM (user might have switched back)
+            card = document.querySelector(`.image-card[data-id="${id}"]`);
+            if (card) {
+                loader = card.querySelector('.ai-loading-overlay');
+                if (loader) {
+                    loader.classList.remove('d-flex');
+                    loader.classList.add('d-none');
+                }
             }
 
             if (data.success) {
                 successes++;
-                card.dataset.analyzed = "true";
-                if (badge) {
-                    badge.className = 'badge ai-badge text-success border-success bg-success bg-opacity-10 badge-ai-status';
-                    badge.innerHTML = '<i class="fas fa-check me-1"></i>Analyzed';
-                }
-                if (snippet) {
-                    snippet.innerHTML = escapeHTML(data.analysis_result);
-                    snippet.title = "Click to copy text";
-                    snippet.onclick = (e) => {
-                        e.stopPropagation();
-                        copyToClipboard(data.analysis_result);
-                    };
+                
+                // CRITICAL: Update global state immediately. 
+                // This ensures if the user switches back to this view later, the data is ready.
+                const img = state.images.find(i => i.id == id);
+                if (img) img.analysis_result = data.analysis_result;
+
+                // Sync UI only if card exists in current DOM
+                if (card) {
+                    card.dataset.analyzed = "true";
+                    const badge = card.querySelector('.badge-ai-status');
+                    const snippet = card.querySelector('.ai-snippet');
+                    
+                    if (badge) {
+                        badge.className = 'badge ai-badge text-success border-success bg-success bg-opacity-10 badge-ai-status';
+                        badge.innerHTML = '<i class="fas fa-check me-1"></i>Analyzed';
+                    }
+                    if (snippet) {
+                        snippet.innerHTML = escapeHTML(data.analysis_result);
+                        snippet.title = "Click to copy text";
+                        snippet.onclick = (e) => {
+                            e.stopPropagation();
+                            copyToClipboard(data.analysis_result);
+                        };
+                    }
                 }
             } else {
-                toast(`Failed AI on ID ${id}`, 'error');
+                console.warn(`Analysis failed for ID ${id}:`, data.error || 'Unknown error');
             }
         } catch (err) {
-            console.error("AI Error:", err);
-            if (loader) {
-                loader.classList.remove('d-flex');
-                loader.classList.add('d-none');
+            console.error(`AI Network/System Error on ID ${id}:`, err);
+            // Cleanup UI if card is visible
+            card = document.querySelector(`.image-card[data-id="${id}"]`);
+            if (card) {
+                loader = card.querySelector('.ai-loading-overlay');
+                if (loader) {
+                    loader.classList.remove('d-flex');
+                    loader.classList.add('d-none');
+                }
             }
-            toast(`Timeout or error on ${id}`, 'error');
         }
     }
 
     state.isAnalyzing = false;
+    // Reset buttons
     elements.analyzeViewBtn.innerHTML = '<i class="fas fa-magic me-1"></i> Analyze View';
+    if (elements.analyzeSelectedBtn) elements.analyzeSelectedBtn.innerHTML = '<i class="fas fa-bolt me-1"></i> Analyze Selected';
+    if (elements.reanalyzeSelectedBtn) elements.reanalyzeSelectedBtn.innerHTML = '<i class="fas fa-sync-alt me-1"></i> Reanalyze Selected';
+    
     updateBatchButtons();
 
-    // Clear selections so checkboxes untick naturally
+    // Clear selections
     state.selectedImageIds.clear();
 
-    // Soft reload to sync state data silently
-    loadImages();
+    // Final background sync
+    await loadImages();
 
     Swal.fire({
         icon: 'success',
         title: 'Batch completed',
-        text: `Processed ${successes} out of ${idsArray.length} images.`,
+        text: `Processed ${successes} out of ${idsArray.length} images. Results are stored in the background.`,
         timer: 3000
     });
 }
