@@ -11,7 +11,10 @@ const state = {
     ollamaTemp: localStorage.getItem('ollamaTemp') || 0.8,
     ollamaPredict: localStorage.getItem('ollamaPredict') || -1,
     ollamaContext: localStorage.getItem('ollamaContext') || 2048,
-    gridSize: localStorage.getItem('gridSize') || 200 // Default 200px
+    gridSize: localStorage.getItem('gridSize') || 200, // Default 200px
+    currentPage: 1,
+    itemsPerPage: parseInt(localStorage.getItem('itemsPerPage')) || 200,
+    totalPages: 1
 };
 
 // DOM Elements
@@ -36,8 +39,15 @@ const elements = {
     detailAiText: document.getElementById('detailAiText'),
     smartFilters: document.querySelectorAll('.nav-link[data-filter]'),
     imageCount: document.getElementById('imageCount'),
+    totalImageCount: document.getElementById('totalImageCount'),
     galleryTitle: document.getElementById('galleryTitle'),
-    emptyState: document.getElementById('emptyState')
+    emptyState: document.getElementById('emptyState'),
+    
+    // Pagination
+    prevPageBtn: document.getElementById('prevPageBtn'),
+    nextPageBtn: document.getElementById('nextPageBtn'),
+    pageInfo: document.getElementById('pageInfo'),
+    itemsPerPageSelect: document.getElementById('itemsPerPage')
 };
 
 // Initialization
@@ -46,7 +56,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initResizer();
     initGridSize();
     initMarqueeSelection();
+    initPagination();
     bindEvents();
+    updateBatchButtons();
 
     // Fetch Data
     loadCategories();
@@ -446,13 +458,68 @@ async function loadCategories() {
     }
 }
 
+// --- Data Loading ---
 async function loadImages() {
     try {
-        const res = await fetch('api/images.php');
-        state.images = await res.json();
+        const queryParams = new URLSearchParams({
+            filter: state.activeFilter,
+            page: state.currentPage,
+            limit: state.itemsPerPage
+        });
+
+        const res = await fetch(`api/images.php?${queryParams.toString()}`);
+        const data = await res.json();
+        
+        state.images = data.images;
+        state.totalPages = data.total_pages;
+        state.currentPage = data.page;
+
         renderGallery();
+        updatePaginationUI(data.total);
     } catch (err) {
-        console.error("Failed to load images", err);
+        console.error(err);
+        toast('Failed to load images', 'error');
+    }
+}
+
+function initPagination() {
+    elements.itemsPerPageSelect.value = state.itemsPerPage;
+
+    elements.prevPageBtn.onclick = () => {
+        if (state.currentPage > 1) {
+            state.currentPage--;
+            loadImages();
+        }
+    };
+
+    elements.nextPageBtn.onclick = () => {
+        if (state.currentPage < state.totalPages) {
+            state.currentPage++;
+            loadImages();
+        }
+    };
+
+    elements.itemsPerPageSelect.onchange = (e) => {
+        state.itemsPerPage = parseInt(e.target.value);
+        state.currentPage = 1;
+        localStorage.setItem('itemsPerPage', state.itemsPerPage);
+        loadImages();
+    };
+}
+
+function updatePaginationUI(total) {
+    elements.pageInfo.innerText = `Page ${state.currentPage} / ${state.totalPages || 1}`;
+    elements.prevPageBtn.disabled = state.currentPage <= 1;
+    elements.nextPageBtn.disabled = state.currentPage >= state.totalPages;
+    
+    // Update count display
+    const start = (state.currentPage - 1) * state.itemsPerPage + 1;
+    const end = Math.min(state.currentPage * state.itemsPerPage, total);
+    
+    if (total === 0) {
+        elements.imageCount.innerText = "0";
+    } else {
+        elements.imageCount.innerText = `${start}-${end} of ${total}`;
     }
 }
 
@@ -588,115 +655,99 @@ function renderCategories() {
 function renderGallery() {
     elements.imageGrid.innerHTML = '';
 
-    // Set view title
-    let count = 0;
-
     state.images.forEach(img => {
-        // Apply Filters
-        if (state.activeFilter === 'unanalyzed' && img.analysis_result) return;
-        if (state.activeFilter === 'uncategorized' && img.category_id !== null) return;
-        if (state.activeFilter !== 'all' && state.activeFilter !== 'unanalyzed' && state.activeFilter !== 'uncategorized') {
-            if (img.category_id != state.activeFilter) return;
-        }
-
-        // NEVER show locked active images in the global scope views. 
-        // Only show them if we are actively viewing their exact dedicated folder.
-        if (img.is_locked && state.activeFilter != img.category_id) {
-            return;
-        }
-
-        count++;
-        const card = document.createElement('div');
-        card.className = `image-card ${state.selectedImageIds.has(img.id) ? 'selected' : ''}`;
-        card.dataset.id = img.id;
-        card.dataset.analyzed = img.analysis_result ? "true" : "false";
-
-        // Draggable configuration
-        card.draggable = true;
-        card.addEventListener('dragstart', (e) => {
-            // Drag the entire selection if this card is part of it, otherwise just drag this card
-            let dragIds = [img.id];
-            if (state.selectedImageIds.has(img.id) && state.selectedImageIds.size > 1) {
-                dragIds = Array.from(state.selectedImageIds);
-            }
-            e.dataTransfer.setData('text/plain', JSON.stringify(dragIds));
-            card.style.opacity = '0.5';
-        });
-        card.addEventListener('dragend', () => {
-            card.style.opacity = '1';
-        });
-
-        const aiSnippet = img.analysis_result ? escapeHTML(img.analysis_result) : '<em>No analysis yet</em>';
-        const aiBadgeColor = img.analysis_result ? 'text-success border-success bg-success bg-opacity-10' : 'text-warning border-warning bg-warning bg-opacity-10';
-
-        card.innerHTML = `
-            <div class="card-actions">
-                <button title="Copy Image URL" onclick="copyToClipboard('http://${window.location.host}/imageanalysis/uploads/${img.filename}')"><i class="fas fa-link"></i></button>
-                ${img.analysis_result ? `<button title="Copy Analysis" onclick="copyToClipboard('${escapeJsString(img.analysis_result)}')"><i class="fas fa-copy"></i></button>` : ''}
-                <a href="uploads/${img.filename}" download class="btn" title="Download Image"><i class="fas fa-download"></i></a>
-                <button class="text-danger" title="Delete Image" onclick="deleteImage(${img.id})"><i class="fas fa-trash"></i></button>
-            </div>
-
-            <img src="uploads/${img.filename}" alt="Image ${img.id}" loading="lazy" class="gallery-img-click" data-id="${img.id}">
-            
-            <div class="card-info" onclick="toggleSelection(${img.id}, event)">
-                <div class="d-flex justify-content-between align-items-center">
-                    <span class="badge ai-badge ${aiBadgeColor} badge-ai-status">
-                        ${img.analysis_result ? '<i class="fas fa-check me-1"></i>Analyzed' : '<i class="fas fa-clock me-1"></i>Pending'}
-                    </span>
-                    <small class="text-muted" style="font-size: 0.65rem;">${img.category_name || 'Uncategorized'}</small>
-                </div>
-                <div class="ai-snippet copyable-text" title="Click to copy text" onclick="copyToClipboard('${escapeJsString(img.analysis_result)}'); event.stopPropagation();">${aiSnippet}</div>
-            </div>
-            
-            <!-- Loading overlay for generation -->
-            <div class="position-absolute top-0 start-0 w-100 h-100 bg-dark bg-opacity-75 d-none flex-column justify-content-center align-items-center z-3 ai-loading-overlay">
-                <div class="spinner-border text-primary" role="status"></div>
-                <small class="mt-2 fw-bold text-white">Analyzing...</small>
-            </div>
-        `;
-
+        const card = createImageCard(img);
         elements.imageGrid.appendChild(card);
-
-        // Bind Image Detail Modal Click
-        const imgEl = card.querySelector('.gallery-img-click');
-        imgEl.addEventListener('click', (e) => {
-            e.stopPropagation(); // Don't trigger card selection
-            elements.detailImage.src = 'uploads/' + img.filename;
-
-            // Format AI text nicely or show placeholder
-            const copyBtn = document.getElementById('copyDetailTextBtn');
-            if (img.analysis_result && img.analysis_result.trim() !== '') {
-                // Convert newlines to breaks for HTML display in the modal
-                elements.detailAiText.innerHTML = escapeHTML(img.analysis_result).replace(/\n/g, '<br>');
-                copyBtn.classList.remove('d-none');
-                copyBtn.onclick = () => copyToClipboard(img.analysis_result);
-            } else {
-                elements.detailAiText.innerHTML = '<span class="text-muted fst-italic">No analysis available for this image yet. Click "Analyze Selected" to generate one.</span>';
-                copyBtn.classList.add('d-none');
-            }
-
-            elements.imageDetailModal.show();
-        });
     });
 
-    elements.imageCount.innerText = count;
-    if (count === 0) elements.emptyState.classList.remove('d-none');
-    else elements.emptyState.classList.add('d-none');
+    elements.emptyState.classList.toggle('d-none', state.images.length > 0);
+}
 
-    elements.imageGrid.appendChild(elements.emptyState);
-    updateBatchButtons();
+// Helper function to create an image card (assuming this is defined elsewhere or will be added)
+function createImageCard(img) {
+    const card = document.createElement('div');
+    card.className = `image-card ${state.selectedImageIds.has(img.id) ? 'selected' : ''}`;
+    card.dataset.id = img.id;
+    card.dataset.analyzed = img.analysis_result ? "true" : "false";
+
+    // Draggable configuration
+    card.draggable = true;
+    card.addEventListener('dragstart', (e) => {
+        // Drag the entire selection if this card is part of it, otherwise just drag this card
+        let dragIds = [img.id];
+        if (state.selectedImageIds.has(img.id) && state.selectedImageIds.size > 1) {
+            dragIds = Array.from(state.selectedImageIds);
+        }
+        e.dataTransfer.setData('text/plain', JSON.stringify(dragIds));
+        card.style.opacity = '0.5';
+    });
+    card.addEventListener('dragend', () => {
+        card.style.opacity = '1';
+    });
+
+    const aiSnippet = img.analysis_result ? escapeHTML(img.analysis_result) : '<em>No analysis yet</em>';
+    const aiBadgeColor = img.analysis_result ? 'text-success border-success bg-success bg-opacity-10' : 'text-warning border-warning bg-warning bg-opacity-10';
+
+    card.innerHTML = `
+        <div class="card-actions">
+            <button title="Copy Image URL" onclick="copyToClipboard('http://${window.location.host}/imageanalysis/uploads/${img.filename}')"><i class="fas fa-link"></i></button>
+            ${img.analysis_result ? `<button title="Copy Analysis" onclick="copyToClipboard('${escapeJsString(img.analysis_result)}')"><i class="fas fa-copy"></i></button>` : ''}
+            <a href="uploads/${img.filename}" download class="btn" title="Download Image"><i class="fas fa-download"></i></a>
+            <button class="text-danger" title="Delete Image" onclick="deleteImage(${img.id})"><i class="fas fa-trash"></i></button>
+        </div>
+
+        <img src="uploads/${img.filename}" alt="Image ${img.id}" loading="lazy" class="gallery-img-click" data-id="${img.id}">
+        
+        <div class="card-info" onclick="toggleSelection(${img.id}, event)">
+            <div class="d-flex justify-content-between align-items-center">
+                <span class="badge ai-badge ${aiBadgeColor} badge-ai-status">
+                    ${img.analysis_result ? '<i class="fas fa-check me-1"></i>Analyzed' : '<i class="fas fa-clock me-1"></i>Pending'}
+                </span>
+                <small class="text-muted" style="font-size: 0.65rem;">${img.category_name || 'Uncategorized'}</small>
+            </div>
+            <div class="ai-snippet copyable-text" title="Click to copy text" onclick="copyToClipboard('${escapeJsString(img.analysis_result)}'); event.stopPropagation();">${aiSnippet}</div>
+        </div>
+        
+        <!-- Loading overlay for generation -->
+        <div class="position-absolute top-0 start-0 w-100 h-100 bg-dark bg-opacity-75 d-none flex-column justify-content-center align-items-center z-3 ai-loading-overlay">
+            <div class="spinner-border text-primary" role="status"></div>
+            <small class="mt-2 fw-bold text-white">Analyzing...</small>
+        </div>
+    `;
+
+    // Bind Image Detail Modal Click
+    const imgEl = card.querySelector('.gallery-img-click');
+    imgEl.addEventListener('click', (e) => {
+        e.stopPropagation(); // Don't trigger card selection
+        elements.detailImage.src = 'uploads/' + img.filename;
+
+        // Format AI text nicely or show placeholder
+        const copyBtn = document.getElementById('copyDetailTextBtn');
+        if (img.analysis_result && img.analysis_result.trim() !== '') {
+            // Convert newlines to breaks for HTML display in the modal
+            elements.detailAiText.innerHTML = escapeHTML(img.analysis_result).replace(/\n/g, '<br>');
+            copyBtn.classList.remove('d-none');
+            copyBtn.onclick = () => copyToClipboard(img.analysis_result);
+        } else {
+            elements.detailAiText.innerHTML = '<span class="text-muted fst-italic">No analysis available for this image yet. Click "Analyze Selected" to generate one.</span>';
+            copyBtn.classList.add('d-none');
+        }
+
+        elements.imageDetailModal.show();
+    });
+    return card;
 }
 
 // --- Active States & Selection ---
-function setActiveFilter(filterValue, labelName) {
-    state.activeFilter = filterValue;
+function setActiveFilter(filter, title = null) {
+    state.activeFilter = filter;
+    state.currentPage = 1; // Reset to page 1 on filter change
 
     // Update active nav link visual
     document.querySelectorAll('.nav-sidebar .nav-link').forEach(link => {
         link.classList.remove('active');
         // Check data-filter or data-id
-        if (link.dataset.filter == filterValue || link.dataset.id == filterValue) {
+        if (link.dataset.filter == filter || link.dataset.id == filter) {
             link.classList.add('active');
         }
     });
@@ -704,8 +755,10 @@ function setActiveFilter(filterValue, labelName) {
     // Clear selection on filter change
     state.selectedImageIds.clear();
 
-    elements.galleryTitle.innerHTML = `<i class="fas fa-filter text-muted me-2" style="font-size: 1rem;"></i>${escapeHTML(labelName)}`;
-    renderGallery();
+    const label = title || (document.querySelector(`.nav-link[data-filter="${filter}"] p`)?.innerText) || 'Gallery';
+    elements.galleryTitle.innerHTML = `<i class="fas fa-filter text-muted me-2" style="font-size: 1rem;"></i>${escapeHTML(label)}`;
+    
+    loadImages();
 }
 
 window.toggleSelection = function (id, event) {
@@ -741,22 +794,25 @@ window.toggleSelection = function (id, event) {
 };
 
 function updateBatchButtons() {
-    elements.analyzeSelectedBtn.disabled = state.selectedImageIds.size === 0 || state.isAnalyzing;
-    elements.analyzeSelectedBtn.innerHTML = `<i class="fas fa-bolt me-1"></i> Analyze Selected (${state.selectedImageIds.size})`;
+    const selSize = state.selectedImageIds.size;
+    const countText = selSize > 0 ? ` (${selSize})` : '';
+
+    elements.analyzeSelectedBtn.disabled = selSize === 0 || state.isAnalyzing;
+    elements.analyzeSelectedBtn.innerHTML = `<i class="fas fa-bolt me-1"></i> Analyze Selected${countText}`;
 
     if (elements.reanalyzeSelectedBtn) {
-        elements.reanalyzeSelectedBtn.disabled = state.selectedImageIds.size === 0 || state.isAnalyzing;
-        elements.reanalyzeSelectedBtn.innerHTML = `<i class="fas fa-sync-alt me-1"></i> Reanalyze Selected (${state.selectedImageIds.size})`;
+        elements.reanalyzeSelectedBtn.disabled = selSize === 0 || state.isAnalyzing;
+        elements.reanalyzeSelectedBtn.innerHTML = `<i class="fas fa-sync-alt me-1"></i> Reanalyze Selected${countText}`;
     }
 
     if (elements.clearAnalysisBtn) {
-        elements.clearAnalysisBtn.disabled = state.selectedImageIds.size === 0 || state.isAnalyzing;
-        elements.clearAnalysisBtn.innerHTML = `<i class="fas fa-broom me-1"></i> Clear Analysis (${state.selectedImageIds.size})`;
+        elements.clearAnalysisBtn.disabled = selSize === 0 || state.isAnalyzing;
+        elements.clearAnalysisBtn.innerHTML = `<i class="fas fa-broom me-1"></i> Clear Analysis${countText}`;
     }
 
     if (elements.deleteSelectedBtn) {
-        elements.deleteSelectedBtn.disabled = state.selectedImageIds.size === 0 || state.isAnalyzing;
-        elements.deleteSelectedBtn.innerHTML = `<i class="fas fa-trash me-1"></i> Delete Selected (${state.selectedImageIds.size})`;
+        elements.deleteSelectedBtn.disabled = selSize === 0 || state.isAnalyzing;
+        elements.deleteSelectedBtn.innerHTML = `<i class="fas fa-trash me-1"></i> Delete Selected${countText}`;
     }
     elements.analyzeViewBtn.disabled = state.isAnalyzing;
 }

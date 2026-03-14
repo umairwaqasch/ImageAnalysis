@@ -41,12 +41,7 @@ if (!isset($_SESSION['user_id'])) {
 
                 <!-- Right Header Actions -->
                 <ul class="navbar-nav ms-auto gap-2 align-items-center">
-                    <li class="nav-item">
-                        <button id="openSettingsBtn" class="btn btn-outline-secondary btn-sm rounded-circle border-0"
-                            title="Settings">
-                            <i class="fas fa-gear"></i>
-                        </button>
-                    </li>
+
                     <li class="nav-item">
                         <button id="themeToggleBtn" class="btn btn-outline-secondary btn-sm rounded-circle border-0"
                             title="Toggle Theme">
@@ -58,22 +53,50 @@ if (!isset($_SESSION['user_id'])) {
                         <input type="range" class="form-range" id="gridSizeSlider" min="150" max="400" step="10"
                             value="200" style="width: 100px;">
                     </li>
-                    <li class="nav-item d-flex gap-2">
-                        <button id="analyzeSelectedBtn" class="btn btn-primary btn-sm" disabled>
-                            <i class="fas fa-bolt me-1"></i> Analyze Selected
-                        </button>
-                        <button id="reanalyzeSelectedBtn" class="btn btn-outline-warning btn-sm" disabled>
-                            <i class="fas fa-sync-alt me-1"></i> Reanalyze Selected
-                        </button>
-                        <button id="clearAnalysisBtn" class="btn btn-outline-secondary btn-sm" disabled>
-                            <i class="fas fa-broom me-1"></i> Clear Analysis
-                        </button>
-                        <button id="analyzeViewBtn" class="btn btn-outline-primary btn-sm">
-                            <i class="fas fa-magic me-1"></i> Analyze View
-                        </button>
-                        <button id="deleteSelectedBtn" class="btn btn-outline-danger btn-sm" disabled>
-                            <i class="fas fa-trash me-1"></i> Delete Selected
-                        </button>
+                    <li class="nav-item d-flex">
+                        <div class="d-flex align-items-center gap-3 flex-wrap">
+                            <!-- Pagination Controls -->
+                            <div class="d-flex align-items-center bg-body-tertiary rounded px-2 py-1 border border-secondary-subtle">
+                                <button id="prevPageBtn" class="btn btn-link btn-sm p-1 text-decoration-none" disabled title="Previous Page">
+                                    <i class="fas fa-chevron-left"></i>
+                                </button>
+                                <span id="pageInfo" class="mx-2 small fw-bold text-nowrap">Page 1 / 1</span>
+                                <button id="nextPageBtn" class="btn btn-link btn-sm p-1 text-decoration-none" disabled title="Next Page">
+                                    <i class="fas fa-chevron-right"></i>
+                                </button>
+                                
+                                <div class="vr mx-2"></div>
+                                
+                                <select id="itemsPerPage" class="form-select form-select-sm border-0 bg-transparent py-0 h-auto" style="width: auto; cursor: pointer;">
+                                    <option value="200" selected>200 / page</option>
+                                    <option value="400">400 / page</option>
+                                    <option value="600">600 / page</option>
+                                    <option value="800">800 / page</option>
+                                </select>
+                            </div>
+
+                            <!-- Batch Actions -->
+                            <div class="d-flex align-items-center gap-2">
+                                <button id="analyzeSelectedBtn" class="btn btn-outline-primary btn-sm" disabled>
+                                    <i class="fas fa-bolt me-1"></i> Analyze Selected
+                                </button>
+                                <button id="reanalyzeSelectedBtn" class="btn btn-outline-warning btn-sm" disabled>
+                                    <i class="fas fa-sync-alt me-1"></i> Reanalyze
+                                </button>
+                                <button id="clearAnalysisBtn" class="btn btn-outline-secondary btn-sm" disabled title="Clear AI Text">
+                                    <i class="fas fa-broom me-1"></i> Clear Analysis
+                                </button>
+                                <button id="analyzeViewBtn" class="btn btn-outline-primary btn-sm" title="Sequential analysis of current view">
+                                    <i class="fas fa-magic me-1"></i> Analyze View
+                                </button>
+                                <button id="deleteSelectedBtn" class="btn btn-outline-danger btn-sm" disabled>
+                                    <i class="fas fa-trash me-1"></i> Delete
+                                </button>
+                                <button id="openSettingsBtn" class="btn btn-outline-secondary btn-sm" title="AI Settings">
+                                    <i class="fas fa-cog"></i>
+                                </button>
+                            </div>
+                        </div>
                     </li>
                     <li class="nav-item ms-3 ps-3 border-start border-secondary-subtle d-flex align-items-center">
                         <span class="text-secondary fw-bold pe-2">
@@ -106,6 +129,12 @@ if (!isset($_SESSION['user_id'])) {
                             <a href="#" class="nav-link active d-flex align-items-center w-100" data-filter="all">
                                 <i class="nav-icon fas fa-images me-2"></i>
                                 <p class="text-truncate flex-grow-1 mb-0">All Images</p>
+                            </a>
+                        </li>
+                        <li class="nav-item w-100">
+                            <a href="#" class="nav-link d-flex align-items-center w-100" data-filter="analyzed">
+                                <i class="nav-icon fas fa-check-double me-2"></i>
+                                <p class="text-truncate flex-grow-1 mb-0">Analyzed</p>
                             </a>
                         </li>
                         <li class="nav-item w-100">
