@@ -26,19 +26,35 @@ $allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 $uploadedFiles = [];
 $errors = [];
 
-foreach ($_FILES['images']['tmp_name'] as $key => $tmpName) {
+    foreach ($_FILES['images']['tmp_name'] as $key => $tmpName) {
     if ($_FILES['images']['error'][$key] === UPLOAD_ERR_OK) {
         $fileType = mime_content_type($tmpName);
         if (in_array($fileType, $allowedTypes)) {
+            // Calculate hash for duplicate detection
+            $fileHash = md5_file($tmpName);
+            $categoryId = isset($_POST['category_id']) && is_numeric($_POST['category_id']) ? (int) $_POST['category_id'] : null;
+
+            // Check if user already has this exact image
+            $checkStmt = $pdo->prepare("SELECT id, filename, category_id FROM images WHERE user_id = ? AND file_hash = ? LIMIT 1");
+            $checkStmt->execute([$_SESSION['user_id'], $fileHash]);
+            $existing = $checkStmt->fetch();
+
+            if ($existing) {
+                $uploadedFiles[] = [
+                    'id' => $existing['id'],
+                    'filename' => $existing['filename'],
+                    'category_id' => $existing['category_id'],
+                    'is_duplicate' => true
+                ];
+                continue; // Skip moving/inserting
+            }
+
             $fileName = uniqid() . '_' . basename($_FILES['images']['name'][$key]);
             $targetFilePath = $uploadDir . $fileName;
 
-            // Context-Aware Upload Injection
-            $categoryId = isset($_POST['category_id']) && is_numeric($_POST['category_id']) ? (int) $_POST['category_id'] : null;
-
             if (move_uploaded_file($tmpName, $targetFilePath)) {
-                $stmt = $pdo->prepare("INSERT INTO images (user_id, filename, category_id) VALUES (?, ?, ?)");
-                if ($stmt->execute([$_SESSION['user_id'], $fileName, $categoryId])) {
+                $stmt = $pdo->prepare("INSERT INTO images (user_id, filename, category_id, file_hash) VALUES (?, ?, ?, ?)");
+                if ($stmt->execute([$_SESSION['user_id'], $fileName, $categoryId, $fileHash])) {
                     $uploadedFiles[] = [
                         'id' => $pdo->lastInsertId(),
                         'filename' => $fileName,

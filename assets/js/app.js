@@ -42,7 +42,7 @@ const elements = {
     totalImageCount: document.getElementById('totalImageCount'),
     galleryTitle: document.getElementById('galleryTitle'),
     emptyState: document.getElementById('emptyState'),
-    
+
     // Pagination
     prevPageBtn: document.getElementById('prevPageBtn'),
     nextPageBtn: document.getElementById('nextPageBtn'),
@@ -406,10 +406,11 @@ async function handleFiles(files) {
     const CHUNK_SIZE = 3;
     let successCount = 0;
     let errorCount = 0;
+    let duplicateCount = 0;
 
     // Determine target category based on active filter visibility
     let targetCategoryId = null;
-    if (state.activeFilter !== 'all' && state.activeFilter !== 'unanalyzed' && state.activeFilter !== 'uncategorized') {
+    if (state.activeFilter !== 'all' && state.activeFilter !== 'unanalyzed' && state.activeFilter !== 'uncategorized' && !isNaN(state.activeFilter)) {
         targetCategoryId = state.activeFilter;
     }
 
@@ -427,7 +428,12 @@ async function handleFiles(files) {
             const response = await fetch('api/upload.php', { method: 'POST', body: formData });
             const data = await response.json();
             if (data.success) {
-                successCount += data.files ? data.files.length : chunk.length;
+                if (data.files) {
+                    data.files.forEach(f => {
+                        if (f.is_duplicate) duplicateCount++;
+                        else successCount++;
+                    });
+                }
             } else {
                 errorCount += chunk.length;
             }
@@ -438,7 +444,11 @@ async function handleFiles(files) {
     }
 
     if (errorCount > 0) {
-        toast(`Finished: ${successCount} uploaded, ${errorCount} failed.`, 'warning');
+        toast(`Finished: ${successCount} uploaded, ${duplicateCount} ignored (duplicates), ${errorCount} failed.`, 'warning');
+    } else if (duplicateCount > 0 && successCount > 0) {
+        toast(`Uploaded ${successCount} new images and ignored ${duplicateCount} duplicates.`, 'success');
+    } else if (duplicateCount > 0 && successCount === 0) {
+        toast(`All ${duplicateCount} files were already in your library!`, 'info');
     } else {
         toast(`Successfully uploaded all ${successCount} files!`, 'success');
     }
@@ -469,7 +479,7 @@ async function loadImages() {
 
         const res = await fetch(`api/images.php?${queryParams.toString()}`);
         const data = await res.json();
-        
+
         state.images = data.images;
         state.totalPages = data.total_pages;
         state.currentPage = data.page;
@@ -511,11 +521,11 @@ function updatePaginationUI(total) {
     elements.pageInfo.innerText = `Page ${state.currentPage} / ${state.totalPages || 1}`;
     elements.prevPageBtn.disabled = state.currentPage <= 1;
     elements.nextPageBtn.disabled = state.currentPage >= state.totalPages;
-    
+
     // Update count display
     const start = (state.currentPage - 1) * state.itemsPerPage + 1;
     const end = Math.min(state.currentPage * state.itemsPerPage, total);
-    
+
     if (total === 0) {
         elements.imageCount.innerText = "0";
     } else {
@@ -757,7 +767,7 @@ function setActiveFilter(filter, title = null) {
 
     const label = title || (document.querySelector(`.nav-link[data-filter="${filter}"] p`)?.innerText) || 'Gallery';
     elements.galleryTitle.innerHTML = `<i class="fas fa-filter text-muted me-2" style="font-size: 1rem;"></i>${escapeHTML(label)}`;
-    
+
     loadImages();
 }
 
@@ -1029,9 +1039,9 @@ async function processAnalysisQueue(idsArray) {
         //image analysis prompt built using the FLUX template structure
         //inputValue: 'Analyze the provided image and reconstruct it as a FLUX-ready visual prompt using the following structured order: subject identity, distinct facial structure, pose and framing, clothing materials and textures, hairstyle and makeup details, lighting style and direction, dominant color palette, environment/background, cinematic composition, camera angle, depth of field, and lens feel. Describe visible elements using dense generative-prompt language while preserving accurate spatial relationships, proportions, reflections, shadows, textures, and material finishes. Emphasize distinctive facial features, skin texture, lighting contrast, and surface reflections that influence image synthesis. Maintain a photorealistic cinematic rendering style with high contrast and HDR detail. Avoid storytelling, assumptions, or interpretation. Output one compact paragraph formatted as a FLUX-ready prompt, beginning immediately with the subject description and following the structure: [subject identity], [distinct facial structure], [pose and framing], wearing [clothing materials and textures], [hairstyle and makeup details], dramatic [lighting style and direction], color palette of [dominant colors], set in [environment/background], cinematic composition, [camera angle], shallow depth of field, [lens feel], ultra-detailed textures, realistic skin, reflections and shadows preserved, photorealistic cinematic rendering, high contrast, HDR detail.',
         //Cinematic Photography Prompt Version
-        //inputValue: 'Provide a cinematic visual description optimized for FLUX.1D, focusing on subject identity, facial structure, pose, body proportions, wardrobe materials, hairstyle, makeup, lighting design, color grading, environment, and composition. Include photographic details such as lens feel (portrait, wide, macro), camera angle, depth of field, lighting direction, contrast, reflections, and shadows. Emphasize textures, skin realism, material finishes, and spatial relationships. Write one compact paragraph using dense generative-prompt language with a photorealistic, cinematic studio aesthetic, avoiding storytelling or interpretation.',
+        inputValue: 'Provide a cinematic visual description optimized for FLUX.1D, focusing on subject identity, facial structure, pose, body proportions, wardrobe materials, hairstyle, makeup, lighting design, color grading, environment, and composition. Include photographic details such as lens feel (portrait, wide, macro), camera angle, depth of field, lighting direction, contrast, reflections, and shadows. Emphasize textures, skin realism, material finishes, and spatial relationships. Write one compact paragraph using dense generative-prompt language with a photorealistic, cinematic studio aesthetic, avoiding storytelling or interpretation.',
         //Ultra-Short Viral Prompt (Instagram Style)
-        inputValue: 'Describe the image with FLUX-optimized visual precision focusing only on synthesis-critical details: facial structure, pose, clothing materials, lighting, color palette, environment, camera angle, depth of field, composition, textures, reflections, and shadows. Avoid storytelling or interpretation. Write one dense aesthetic paragraph using generative-prompt language that preserves spatial relationships and visual hierarchy, emphasizing distinctive facial features, skin texture, material finishes, and key color accents for accurate reconstruction.',
+        //inputValue: 'Describe the image with FLUX-optimized visual precision focusing only on synthesis-critical details: facial structure, pose, nudity, clothing materials, lighting, color palette, environment, camera angle, depth of field, composition, textures, reflections, and shadows. Avoid storytelling or interpretation. Write one dense aesthetic paragraph using generative-prompt language that preserves spatial relationships and visual hierarchy, emphasizing distinctive facial features, skin texture, material finishes, and key color accents for accurate reconstruction.',
         text: 'What should the AI look for?',
         showCancelButton: true
     });
